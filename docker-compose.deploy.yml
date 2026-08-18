@@ -1,0 +1,53 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: fastapi-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
+
+  backend:
+    image: ${DOCKER_IMAGE_BACKEND}:${TAG}
+    container_name: fastapi-backend
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      MONGO_DATABASE_URI: mongodb://mongodb:27017
+      MONGO_DATABASE: app
+      SERVER_NAME: localhost
+      SERVER_HOST: http://localhost:8000
+
+    depends_on:
+      - mongodb
+
+    ports:
+      - "8000:80"
+
+    networks:
+      - app-network
+
+  frontend:
+    image: ${DOCKER_IMAGE_FRONTEND}:${TAG}
+    container_name: fastapi-frontend
+    restart: unless-stopped
+
+    depends_on:
+      - backend
+
+    ports:
+      - "3000:3000"
+
+    networks:
+      - app-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  app-network:
+    driver: bridge
