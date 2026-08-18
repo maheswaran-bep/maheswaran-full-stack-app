@@ -17,6 +17,17 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
 
+    env:
+      TRAEFIK_TAG: localhost
+      TRAEFIK_PUBLIC_TAG: traefik-public
+      TRAEFIK_PUBLIC_NETWORK: traefik-public
+      STACK_NAME: maheswaran-full-stack-app-com
+      DOMAIN: localhost
+      DOCKER_IMAGE_BACKEND: backend
+      DOCKER_IMAGE_FRONTEND: frontend
+      DOCKER_IMAGE_CELERYWORKER: celeryworker
+      PROJECT_NAME: Maheswaran Full Stack App
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
