@@ -1,105 +1,74 @@
-name: build and deploy template
+name: FastAPI MongoDB CI/CD
+
 on:
   push:
     branches:
+      - develop
       - main
-      - production
 
-env:
-  TRAEFIK_PUBLIC_NETWORK: traefik-public
-  STACK_NAME: maheswaran-full-stack-app-com
-  DOCKER_IMAGE_CELERYWORKER: celeryworker
-  TRAEFIK_TAG: maheswaran-full-stack-app.com
-  TRAEFIK_PUBLIC_TAG: traefik-public
-  DOCKER_IMAGE_BACKEND: backend
-  DOCKER_IMAGE_FRONTEND: frontend
-  PROJECT_NAME: Maheswaran Full Stack App
-  DOMAIN: localhost
-  SMTP_HOST:
+  pull_request:
+    branches:
+      - develop
+      - main
 
 jobs:
+
   tests:
+    name: Run Tests
     runs-on: ubuntu-latest
+
     steps:
-      - name: Check out code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Run Tests
-        run: sh ./scripts/test.sh
+        run: |
+          sh ./scripts/test.sh
 
-  deploy-staging:
-    if: github.ref == 'refs/heads/main'
+
+  build-and-push:
+    name: Build and Push Docker Images
     runs-on: ubuntu-latest
+    needs: tests
+
+    if: github.event_name == 'push'
+
     steps:
-      - name: Check out code
+      - name: Checkout code
         uses: actions/checkout@v4
 
 
-      - name: Log in to Docker Registry
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
 
-      - name: Install docker-auto-labels
-        run: pip install docker-auto-labels
-
-      - name: Build Staging 
+      - name: Build Backend Image
         run: |
-          DOMAIN=stag.maheswaran-full-stack-app.com \
-          TRAEFIK_TAG=stag.maheswaran-full-stack-app.com \
-          STACK_NAME=stag-maheswaran-full-stack-app-com \
-          TAG=staging \
-          FRONTEND_ENV=staging \
-          sh ./scripts/build-push.sh
+          docker build \
+            -f backend/backend.dockerfile \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-backend:${{ github.sha }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-backend:latest \
+            ./backend
 
-      # Uncomment to attempt deploying, need to valiate functionality
-      # - name: Deploy Staging
-      #   run: |
-      #     DOMAIN=stag.maheswaran-full-stack-app.com \
-      #     TRAEFIK_TAG=stag.maheswaran-full-stack-app.com \
-      #     STACK_NAME=stag-maheswaran-full-stack-app-com \
-      #     TAG=staging \
-      #     sh ./scripts/deploy.sh
-    needs: tests
 
-  deploy-prod:
-    if: github.ref == 'refs/heads/production'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Log in to Docker Registry
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Install docker-auto-labels
-        run: pip install docker-auto-labels
-      
-      - name: Build Production
+      - name: Build Frontend Image
         run: |
-          DOMAIN=maheswaran-full-stack-app.com \
-          TRAEFIK_TAG=maheswaran-full-stack-app.com \
-          STACK_NAME=maheswaran-full-stack-app-com \
-          TAG=prod \
-          FRONTEND_ENV=production \
-          sh ./scripts/build-push.sh
+          docker build \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-frontend:${{ github.sha }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-frontend:latest \
+            ./frontend
 
-      # Uncomment to attempt deploying, need to valiate functionality
-      # - name: Deploy Production
-      #   run: |
-      #     DOMAIN=maheswaran-full-stack-app.com \
-      #     TRAEFIK_TAG=maheswaran-full-stack-app.com \
-      #     STACK_NAME=maheswaran-full-stack-app-com \
-      #     TAG=prod \
-      #     sh ./scripts/deploy.sh
-    needs: tests
-   
 
-  
-  
-    
+      - name: Push Backend Image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-backend:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-backend:latest
+
+
+      - name: Push Frontend Image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-frontend:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-frontend:latest
