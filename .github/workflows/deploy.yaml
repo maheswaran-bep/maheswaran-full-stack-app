@@ -1,0 +1,123 @@
+name: Build and Push FastAPI MongoDB App
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+  pull_request:
+    branches:
+      - develop
+      - main
+
+  workflow_dispatch:
+
+env:
+  BACKEND_IMAGE: maheswaranstackly/fastapi-backend
+  FRONTEND_IMAGE: maheswaranstackly/fastapi-frontend
+
+jobs:
+
+  test:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Create CI environment file
+        run: |
+          cat > .env <<'EOF'
+          PROJECT_NAME=Maheswaran Full Stack App
+          STACK_NAME=maheswaran-full-stack-app-com
+          DOMAIN=localhost
+
+          TRAEFIK_TAG=localhost
+          TRAEFIK_PUBLIC_TAG=traefik-public
+          TRAEFIK_PUBLIC_NETWORK=traefik-public
+          TRAEFIK_PUBLIC_NETWORK_IS_EXTERNAL=false
+
+          DOCKER_IMAGE_BACKEND=backend
+          DOCKER_IMAGE_FRONTEND=frontend
+          DOCKER_IMAGE_CELERYWORKER=celeryworker
+
+          BACKEND_APP_MODULE=app.main:app
+          BACKEND_PRE_START_PATH=/app/prestart.sh
+
+          FIRST_SUPERUSER=admin@example.com
+          FIRST_SUPERUSER_PASSWORD=changethis
+
+          SECRET_KEY=ci-test-secret-key
+          TOTP_SECRET_KEY=ci-test-totp-secret
+
+          USERS_OPEN_REGISTRATION=true
+
+          MONGO_DATABASE=app
+          MONGO_DATABASE_URI=mongodb://mongodb:27017
+
+          SMTP_HOST=
+          SMTP_PORT=587
+          SMTP_TLS=true
+          SMTP_USER=
+          SMTP_PASSWORD=
+
+          SENTRY_DSN=
+
+          EMAILS_FROM_EMAIL=info@example.com
+          EMAILS_FROM_NAME=CI Test
+          EMAILS_TO_EMAIL=admin@example.com
+
+          FLOWER_BASIC_AUTH=admin:changethis
+          EOF
+
+      - name: Validate Docker Compose
+        run: |
+          docker compose config
+
+
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: test
+
+    # Don't push images for pull requests
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push FastAPI backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/backend.dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
